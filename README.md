@@ -10,7 +10,7 @@ Kaggle GPU. A local HTML dashboard follows the run live and shows the final resu
 | Path | What it is |
 |---|---|
 | `kaggle/kernel/train.py` | Training + evaluation script that runs on Kaggle (T4 GPU) |
-| `kaggle/kernel/kernel-metadata.json` | Kaggle kernel config (private, GPU, internet on) |
+| `kaggle/kernel/kernel-metadata.json` | Kaggle kernel config (private, GPU, no internet: dependencies come from the `kaggle/deps` dataset) |
 | `kaggle/dataset/dataset-metadata.json` | Private Kaggle dataset holding the images and labels |
 | `scripts/analyze_dataset.py` | Dataset statistics and annotated samples |
 | `scripts/monitor.py` | Polls the Kaggle run, updates the dashboard, downloads output when done |
