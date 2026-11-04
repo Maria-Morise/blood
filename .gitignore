@@ -1,0 +1,21 @@
+# Secrets: never commit the Kaggle token
+.env
+blood cells
+.kaggle/
+
+# Local environment
+.venv/
+__pycache__/
+.DS_Store
+.N
+
+# Raw dataset (hosted as a private Kaggle dataset) and staging archives
+data/TXL-PBC/images/
+data/TXL-PBC/labels/
+kaggle/dataset/*.zip
+kaggle/dataset/TXL-PBC/
+
+# Full Kaggle output (weights are large); the summary lands in dashboard/data and reports/
+runs/
+kaggle/deps/files/
+kaggle/deps/*.zip

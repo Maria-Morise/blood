@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blood Cell Detector</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root {
+  color-scheme: light;
+  --surface-0: #f4f4f2; --surface-1: #fcfcfb; --border: #e2e1dc;
+  --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #7a7974;
+  --grid: #ebeae6;
+  --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a;
+  --good: #0ca30c; --warning: #fab219; --critical: #d03b3b;
+  --seq-0: #f0efec; --seq-1: #9ec5f4; --seq-2: #3987e5; --seq-3: #184f95; --seq-ink: #fff;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface-0: #111110; --surface-1: #1a1a19; --border: #2e2e2c;
+    --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
+    --grid: #2a2a28;
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
+    --seq-0: #262624; --seq-1: #184f95; --seq-2: #2a78d6; --seq-3: #86b6ef; --seq-ink: #0b0b0b;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface-0: #111110; --surface-1: #1a1a19; --border: #2e2e2c;
+  --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
+  --grid: #2a2a28;
+  --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
+  --seq-0: #262624; --seq-1: #184f95; --seq-2: #2a78d6; --seq-3: #86b6ef; --seq-ink: #0b0b0b;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--surface-0); color: var(--text-primary);
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+header { position: sticky; top: 0; z-index: 5; background: var(--surface-1); border-bottom: 1px solid var(--border); }
+.bar { max-width: 1200px; margin: 0 auto; padding: 12px 16px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+h1 { font-size: 17px; margin: 0; font-weight: 600; }
+nav { display: flex; gap: 4px; margin-left: auto; flex-wrap: wrap; }
+nav button, .ghost { background: none; border: 1px solid transparent; color: var(--text-secondary); padding: 6px 12px;
+  border-radius: 6px; cursor: pointer; font: inherit; }
+nav button[aria-selected="true"] { background: var(--surface-0); border-color: var(--border); color: var(--text-primary); }
+main { max-width: 1200px; margin: 0 auto; padding: 20px 16px 48px; }
+section[hidden] { display: none; }
+h2 { font-size: 15px; margin: 28px 0 12px; font-weight: 600; }
+h2:first-child { margin-top: 0; }
+.muted { color: var(--text-muted); }
+.sub { color: var(--text-secondary); margin: -6px 0 12px; }
+.grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); }
+.tiles { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); }
+.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 16px; min-width: 0; }
+.card h3 { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+.tile .v { font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tile .l { color: var(--text-secondary); font-size: 12px; }
+.chart { position: relative; height: 260px; }
+.status { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary); }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--text-muted); }
+.dot.running { background: var(--warning); animation: pulse 1.5s infinite; }
+.dot.complete { background: var(--good); } .dot.error { background: var(--critical); }
+@keyframes pulse { 50% { opacity: .35; } }
+.progress { height: 8px; background: var(--seq-0); border-radius: 4px; overflow: hidden; margin: 8px 0 4px; }
+.progress > div { height: 100%; background: var(--series-1); border-radius: 4px; transition: width .4s; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: right; }
+th:first-child, td:first-child { text-align: left; }
+th { font-weight: 600; color: var(--text-secondary); font-size: 12px; }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+.scroll { overflow-x: auto; }
+.gallery { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr)); }
+.gallery img { width: 100%; border-radius: 8px; border: 1px solid var(--border); display: block; background: #fff; }
+.gallery figure { margin: 0; } .gallery figcaption { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+.empty { padding: 32px; text-align: center; color: var(--text-muted); }
+.err { color: var(--critical); font-family: ui-monospace, monospace; font-size: 12px; white-space: pre-wrap; }
+.cm td { text-align: center; min-width: 64px; }
+a { color: var(--series-1); }
+</style>
+</head>
+<body>
+<header><div class="bar">
+  <h1>YOLO26 blood cell detection</h1>
+  <span class="status"><span class="dot" id="dot"></span><span id="statusText">No run data</span></span>
+  <nav role="tablist">
+    <button role="tab" data-tab="training" aria-selected="true">Training</button>
+    <button role="tab" data-tab="performance">Performance</button>
+    <button role="tab" data-tab="dataset">Dataset</button>
+  </nav>
+  <button class="ghost" id="theme" title="Toggle theme">◐</button>
+</div></header>
+
+<main>
+<section id="training">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <strong id="epochLabel">Waiting for the first epoch</strong>
+      <span class="muted" id="updated"></span>
+    </div>
+    <div class="progress"><div id="progress" style="width:0"></div></div>
+    <div class="muted" id="runMeta"></div>
+    <div class="err" id="errors"></div>
+  </div>
+  <h2>Run summary</h2>
+  <div class="tiles" id="liveTiles"></div>
+  <h2>Validation metrics per epoch</h2>
+  <div class="grid">
+    <div class="card"><h3>mAP</h3><div class="chart"><canvas id="cMap"></canvas></div></div>
+    <div class="card"><h3>Precision and recall</h3><div class="chart"><canvas id="cPR"></canvas></div></div>
+  </div>
+  <h2>Losses</h2>
+  <div class="grid">
+    <div class="card"><h3>Box loss</h3><div class="chart"><canvas id="cBox"></canvas></div></div>
+    <div class="card"><h3>Classification loss</h3><div class="chart"><canvas id="cCls"></canvas></div></div>
+  </div>
+</section>
+
+<section id="performance" hidden>
+  <div id="perfEmpty" class="card empty">Final evaluation appears here once the Kaggle run completes and <code>scripts/monitor.py</code> downloads its output.</div>
+  <div id="perf" hidden>
+    <h2>Test split, best checkpoint</h2>
+    <p class="sub">126 held-out images, never used for training or model selection.</p>
+    <div class="tiles" id="testTiles"></div>
+    <h2>Per class</h2>
+    <div class="grid">
+      <div class="card"><h3>mAP50-95 by class</h3><div class="chart"><canvas id="cClass"></canvas></div></div>
+      <div class="card scroll"><h3>Test metrics</h3><table id="classTable"></table>
+        <h3 style="margin-top:16px">Validation metrics</h3><table id="valTable"></table></div>
+    </div>
+    <h2>Confusion matrix (test)</h2>
+    <p class="sub">Share of each true class (column) by predicted class (row). "background" = missed cell or false detection.</p>
+    <div class="card scroll"><table class="cm" id="cm"></table></div>
+    <h2>Cell counting (test)</h2>
+    <p class="sub" id="countSub"></p>
+    <div class="grid">
+      <div class="card"><h3>Predicted vs true count per image</h3><div class="chart"><canvas id="cCount"></canvas></div></div>
+      <div class="card scroll"><h3>Counting error</h3><table id="countTable"></table></div>
+    </div>
+    <h2>Example predictions</h2>
+    <div class="gallery" id="examples"></div>
+    <h2>Ultralytics plots</h2>
+    <div class="gallery" id="plots"></div>
+  </div>
+</section>
+
+<section id="dataset" hidden>
+  <div class="tiles" id="dsTiles"></div>
+  <h2>Cells per class and split</h2>
+  <div class="grid">
+    <div class="card"><h3>Annotated cells per class (all splits)</h3><div class="chart"><canvas id="cDsClass"></canvas></div></div>
+    <div class="card scroll"><h3>Split breakdown</h3><table id="dsTable"></table></div>
+  </div>
+  <h2>Cell size</h2>
+  <div class="grid">
+    <div class="card"><h3>Box size distribution (√area, px)</h3><div class="chart"><canvas id="cSize"></canvas></div></div>
+    <div class="card"><h3>Cells per image</h3><div class="chart"><canvas id="cPerImg"></canvas></div></div>
+  </div>
+  <h2>Image properties and label quality</h2>
+  <div class="card" id="dsProps"></div>
+  <h2>Annotated samples</h2>
+  <p class="sub"><span class="swatch" style="background:var(--series-1)"></span>WBC
+    <span class="swatch" style="background:var(--series-2);margin-left:12px"></span>RBC
+    <span class="swatch" style="background:var(--series-3);margin-left:12px"></span>Platelets</p>
+  <div class="gallery" id="samples"></div>
+</section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const CLASS_VARS = ["--series-1", "--series-2", "--series-3"];
+const f3 = v => (v == null || isNaN(v)) ? "–" : Number(v).toFixed(3);
+const pct = v => (v == null || isNaN(v)) ? "–" : (100 * v).toFixed(1) + "%";
+const dur = s => s == null ? "–" : s >= 3600 ? `${(s / 3600).toFixed(1)} h` : `${Math.round(s / 60)} min`;
+const charts = {};
+
+// ---- theme ----
+try { const t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+$("theme").onclick = () => {
+  const dark = document.documentElement.dataset.theme
+    ? document.documentElement.dataset.theme === "dark"
+    : matchMedia("(prefers-color-scheme: dark)").matches;
+  document.documentElement.dataset.theme = dark ? "light" : "dark";
+  try { localStorage.setItem("theme", document.documentElement.dataset.theme); } catch (e) {}
+  renderAll();
+};
+
+// ---- tabs ----
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach(x => x.setAttribute("aria-selected", x === b));
+  document.querySelectorAll("main section").forEach(s => s.hidden = s.id !== b.dataset.tab);
+  try { localStorage.setItem("tab", b.dataset.tab); } catch (e) {}
+  renderAll();
+});
+try { const t = localStorage.getItem("tab"); if (t) document.querySelector(`[data-tab="${t}"]`)?.click(); } catch (e) {}
+
+// ---- chart helpers ----
+function baseOptions(extra = {}) {
+  const tick = { color: css("--text-muted"), font: { size: 11 } };
+  return {
+    responsive: true, maintainAspectRatio: false, animation: false,
+    interaction: { mode: "index", intersect: false },
+    plugins: {
+      legend: { labels: { color: css("--text-secondary"), boxWidth: 10, boxHeight: 10, useBorderRadius: true, borderRadius: 2 } },
+      tooltip: { backgroundColor: css("--surface-1"), titleColor: css("--text-primary"), bodyColor: css("--text-secondary"),
+        borderColor: css("--border"), borderWidth: 1, padding: 10, boxPadding: 4,
+        callbacks: { label: c => ` ${c.dataset.label}: ${typeof c.parsed.y === "number" ? c.parsed.y.toFixed(3) : c.formattedValue}` } },
+    },
+    scales: {
+      x: { grid: { display: false }, ticks: tick, border: { color: css("--border") }, ...(extra.x || {}) },
+      y: { grid: { color: css("--grid") }, ticks: tick, border: { display: false }, ...(extra.y || {}) },
+    },
+  };
+}
+function draw(id, config) {
+  if (charts[id]) charts[id].destroy();
+  const el = $(id);
+  if (!el || el.closest("section").hidden) return;
+  charts[id] = new Chart(el, config);
+}
+function line(label, data, color, dashed) {
+  return { label, data, borderColor: color, backgroundColor: color, borderWidth: 2, pointRadius: data.length < 5 ? 4 : 0,
+    pointHoverRadius: 4, pointHoverBorderColor: css("--surface-1"), pointHoverBorderWidth: 2, tension: .2,
+    borderDash: dashed ? [5, 4] : [] };
+}
+function tile(value, label) { return `<div class="card tile"><div class="v">${value}</div><div class="l">${label}</div></div>`; }
+
+// ---- training tab ----
+function epochSeries() {
+  const R = window.RESULTS, L = window.LIVE;
+  if (R && R.epochs && R.epochs.length) return R.epochs;
+  return (L && L.epochs) || [];
+}
+function renderTraining() {
+  const L = window.LIVE || {}, R = window.RESULTS, E = epochSeries();
+  const status = R ? "complete" : (L.status || "unknown");
+  $("dot").className = "dot " + (/running|queued/.test(status) ? "running" : status === "complete" ? "complete" : /error|cancel/.test(status) ? "error" : "");
+  $("statusText").textContent = { running: "Training on Kaggle", queued: "Queued on Kaggle", complete: "Run complete",
+    error: "Run failed", unknown: "No run data" }[status] || status;
+  const last = E[E.length - 1] || {};
+  const total = (R && R.config.epochs) || last.epochs || (L.start && L.start.config.epochs) || 0;
+  $("epochLabel").textContent = E.length ? `Epoch ${last.epoch} of ${total}` + (L.stage === "evaluating" && !R ? " · evaluating" : "") : "Waiting for the first epoch";
+  $("progress").style.width = total ? `${Math.min(100, 100 * (last.epoch || 0) / total)}%` : "0";
+  $("updated").textContent = L.updated ? `Updated ${new Date(L.updated).toLocaleTimeString()}` : "";
+  const st = L.start || {};
+  $("runMeta").innerHTML = [st.gpu || (R && R.gpu), st.config && st.config.model, st.ultralytics && `Ultralytics ${st.ultralytics}`,
+    L.url && `<a href="${L.url}" target="_blank" rel="noopener">Kaggle kernel</a>`].filter(Boolean).join(" · ");
+  $("errors").textContent = (L.errors || []).join("\n");
+
+  const best = E.reduce((b, e) => !b || e["metrics/mAP50-95(B)"] > b["metrics/mAP50-95(B)"] ? e : b, null);
+  const avgEpoch = E.filter(e => e.epoch_time_s).slice(-5);
+  const eta = avgEpoch.length && total ? (total - last.epoch) * avgEpoch.reduce((s, e) => s + e.epoch_time_s, 0) / avgEpoch.length : null;
+  $("liveTiles").innerHTML =
+    tile(best ? f3(best["metrics/mAP50-95(B)"]) : "–", `Best val mAP50-95${best ? ` (epoch ${best.epoch})` : ""}`) +
+    tile(best ? f3(best["metrics/mAP50(B)"]) : "–", "Val mAP50 at best epoch") +
+    tile(last.elapsed_s != null ? dur(last.elapsed_s) : R ? dur(R.train_time_s) : "–", "Elapsed") +
+    tile(R ? "done" : eta != null ? dur(eta) : "–", "Remaining (est.)");
+
+  const x = E.map(e => e.epoch);
+  const col = [css("--series-1"), css("--series-2")];
+  const unit = { y: { min: 0, max: 1 } };
+  draw("cMap", { type: "line", data: { labels: x, datasets: [
+    line("mAP50", E.map(e => e["metrics/mAP50(B)"]), col[0]),
+    line("mAP50-95", E.map(e => e["metrics/mAP50-95(B)"]), col[1])] }, options: baseOptions(unit) });
+  draw("cPR", { type: "line", data: { labels: x, datasets: [
+    line("Precision", E.map(e => e["metrics/precision(B)"]), col[0]),
+    line("Recall", E.map(e => e["metrics/recall(B)"]), col[1])] }, options: baseOptions(unit) });
+  draw("cBox", { type: "line", data: { labels: x, datasets: [
+    line("Train", E.map(e => e["train/box_loss"]), col[0]),
+    line("Validation", E.map(e => e["val/box_loss"]), col[1], true)] }, options: baseOptions() });
+  draw("cCls", { type: "line", data: { labels: x, datasets: [
+    line("Train", E.map(e => e["train/cls_loss"]), col[0]),
+    line("Validation", E.map(e => e["val/cls_loss"]), col[1], true)] }, options: baseOptions() });
+}
+
+// ---- performance tab ----
+function metricTable(split) {
+  const names = Object.keys(split.per_class);
+  const sw = i => `<span class="swatch" style="background:var(${CLASS_VARS[i]})"></span>`;
+  return `<tr><th>Class</th><th>Precision</th><th>Recall</th><th>mAP50</th><th>mAP50-95</th></tr>` +
+    names.map((n, i) => { const m = split.per_class[n];
+      return `<tr><td>${sw(i)}${n}</td><td>${f3(m.precision)}</td><td>${f3(m.recall)}</td><td>${f3(m.mAP50)}</td><td>${f3(m["mAP50-95"])}</td></tr>`; }).join("") +
+    `<tr><td><strong>All</strong></td>${["precision", "recall", "mAP50", "mAP50-95"].map(k => `<td><strong>${f3(split.overall[k])}</strong></td>`).join("")}</tr>`;
+}
+function renderPerformance() {
+  const R = window.RESULTS;
+  $("perfEmpty").hidden = !!R; $("perf").hidden = !R;
+  if (!R) return;
+  const T = R.test, names = Object.keys(T.per_class);
+  $("testTiles").innerHTML = tile(f3(T.overall["mAP50-95"]), "mAP50-95") + tile(f3(T.overall.mAP50), "mAP50") +
+    tile(f3(T.overall.precision), "Precision") + tile(f3(T.overall.recall), "Recall") +
+    tile(`${T.speed_ms.inference.toFixed(1)} ms`, `Inference per image (${R.gpu})`);
+  $("classTable").innerHTML = metricTable(T);
+  $("valTable").innerHTML = metricTable(R.val);
+  draw("cClass", { type: "bar", data: { labels: names, datasets: [
+      { label: "Validation", data: names.map(n => R.val.per_class[n]["mAP50-95"]), backgroundColor: css("--seq-1"), borderRadius: 4, borderSkipped: "start" },
+      { label: "Test", data: names.map(n => T.per_class[n]["mAP50-95"]), backgroundColor: css("--seq-2"), borderRadius: 4, borderSkipped: "start" }] },
+    options: { ...baseOptions({ y: { min: 0, max: 1 } }), datasets: { bar: { maxBarThickness: 36, categoryPercentage: .6 } } } });
+
+  // confusion matrix: rows predicted, cols true; normalize per true column
+  const M = T.confusion_matrix, lab = T.confusion_labels;
+  const colSum = lab.map((_, j) => M.reduce((s, r) => s + r[j], 0));
+  const steps = ["--seq-0", "--seq-1", "--seq-2", "--seq-3"];
+  let h = `<tr><th>Predicted ↓ / True →</th>${lab.map(l => `<th style="text-align:center">${l}</th>`).join("")}</tr>`;
+  M.forEach((r, i) => {
+    h += `<tr><td>${lab[i]}</td>` + r.map((v, j) => {
+      const share = colSum[j] ? v / colSum[j] : null;
+      const step = !share ? 0 : share < .25 ? 1 : share < .6 ? 2 : 3;
+      const bg = share == null ? "transparent" : `var(${steps[step]})`;
+      const ink = step >= 2 ? "var(--seq-ink)" : "var(--text-primary)";
+      return `<td style="background:${bg};color:${ink}" title="${Math.round(v)} cells">${share == null ? "–" : pct(share)}<br><span style="font-size:11px;opacity:.75">${Math.round(v)}</span></td>`;
+    }).join("") + "</tr>";
+  });
+  $("cm").innerHTML = h;
+
+  const C = R.counting;
+  $("countSub").textContent = `Boxes counted per image at confidence ≥ ${C.conf}. Points on the diagonal are images counted exactly.`;
+  $("countTable").innerHTML = `<tr><th>Class</th><th>True total</th><th>Predicted total</th><th>MAE / image</th><th>Exact count</th></tr>` +
+    names.map((n, i) => { const c = C.per_class[n];
+      return `<tr><td><span class="swatch" style="background:var(${CLASS_VARS[i]})"></span>${n}</td><td>${c.gt_total}</td><td>${c.pred_total}</td><td>${c.mae.toFixed(2)}</td><td>${pct(c.exact_match_rate)}</td></tr>`; }).join("");
+  const maxC = Math.max(...C.per_image.flatMap(p => [...p.gt, ...p.pred]));
+  draw("cCount", { type: "scatter", data: { datasets: [
+      ...names.map((n, i) => ({ label: n, data: C.per_image.map(p => ({ x: p.gt[i], y: p.pred[i], img: p.image })),
+        backgroundColor: css(CLASS_VARS[i]), borderColor: css("--surface-1"), borderWidth: 1.5, pointRadius: 4.5, pointHoverRadius: 6 })),
+      { label: "Exact", type: "line", data: [{ x: 0, y: 0 }, { x: maxC, y: maxC }], borderColor: css("--text-muted"),
+        borderWidth: 1, borderDash: [4, 4], pointRadius: 0 }] },
+    options: { ...baseOptions({ x: { type: "linear", min: 0, title: { display: true, text: "True count", color: css("--text-muted") } },
+                                y: { min: 0, title: { display: true, text: "Predicted count", color: css("--text-muted") } } }),
+      interaction: { mode: "nearest", intersect: true },
+      plugins: { ...baseOptions().plugins, tooltip: { ...baseOptions().plugins.tooltip,
+        filter: c => c.dataset.label !== "Exact",
+        callbacks: { label: c => ` ${c.dataset.label}: true ${c.raw.x}, predicted ${c.raw.y}` } } } } });
+
+  const fig = (src, cap) => `<figure><a href="${src}" target="_blank"><img loading="lazy" src="${src}" alt="${cap}"></a><figcaption>${cap}</figcaption></figure>`;
+  $("examples").innerHTML = R.examples.map(p => fig(p, p.split("/").pop())).join("");
+  $("plots").innerHTML = R.plots.map(p => fig(p, p.split("/").pop().replace(".png", "").replace(/_/g, " "))).join("");
+}
+
+// ---- dataset tab ----
+function renderDataset() {
+  const D = window.DATASET;
+  if (!D) { $("dsTiles").innerHTML = `<div class="card empty">Run <code>scripts/analyze_dataset.py</code> first.</div>`; return; }
+  const names = D.classes, T = D.totals;
+  $("dsTiles").innerHTML = tile(T.images.toLocaleString(), "Images") + tile(T.cells.toLocaleString(), "Annotated cells") +
+    names.map(n => tile(pct(T.per_class[n] / T.cells), `${n} share of cells`)).join("");
+  draw("cDsClass", { type: "bar", data: { labels: names, datasets: [{ label: "Cells", data: names.map(n => T.per_class[n]),
+      backgroundColor: names.map((_, i) => css(CLASS_VARS[i])), borderRadius: 4, borderSkipped: "start", maxBarThickness: 48 }] },
+    options: { ...baseOptions(), plugins: { ...baseOptions().plugins, legend: { display: false } } } });
+  $("dsTable").innerHTML = `<tr><th>Split</th><th>Images</th>${names.map(n => `<th>${n}</th>`).join("")}<th>Cells</th></tr>` +
+    Object.entries(D.splits).map(([s, d]) => `<tr><td>${s}</td><td>${d.images}</td>${names.map(n => `<td>${d.per_class[n].toLocaleString()}</td>`).join("")}<td>${d.cells.toLocaleString()}</td></tr>`).join("") +
+    `<tr><td><strong>Total</strong></td><td><strong>${T.images}</strong></td>${names.map(n => `<td><strong>${T.per_class[n].toLocaleString()}</strong></td>`).join("")}<td><strong>${T.cells.toLocaleString()}</strong></td></tr>`;
+
+  const edges = D.box_size_px[names[0]].hist.edges;
+  const mids = edges.slice(0, -1).map((e, i) => Math.round((e + edges[i + 1]) / 2));
+  draw("cSize", { type: "line", data: { labels: mids, datasets: names.map((n, i) => {
+      const c = D.box_size_px[n].hist.counts, s = c.reduce((a, b) => a + b, 0);
+      return line(n, c.map(v => v / s), css(CLASS_VARS[i])); }) },
+    options: baseOptions({ x: { title: { display: true, text: "√(box area) in px", color: css("--text-muted") } },
+                           y: { title: { display: true, text: "Share of class", color: css("--text-muted") } } }) });
+  const ch = D.cells_per_image.hist;
+  draw("cPerImg", { type: "bar", data: { labels: ch.edges.slice(0, -1), datasets: [{ label: "Images", data: ch.counts,
+      backgroundColor: css("--series-1"), borderRadius: 4, borderSkipped: "start" }] },
+    options: { ...baseOptions({ x: { title: { display: true, text: "Cells in image", color: css("--text-muted") } } }),
+      plugins: { ...baseOptions().plugins, legend: { display: false } } } });
+  $("dsProps").innerHTML = `<p style="margin-top:0"><strong>Image sizes:</strong> ${Object.entries(D.image_sizes).map(([k, v]) => `${k} (${v})`).join(", ")}</p>
+    <p><strong>Color modes:</strong> ${Object.entries(D.color_modes).map(([k, v]) => `${k} (${v})`).join(", ")}</p>
+    <p style="margin-bottom:0"><strong>Label issues:</strong> ${D.issue_count} exact duplicate boxes (removed automatically by the Ultralytics loader). No missing, empty or out-of-range labels.</p>`;
+  $("samples").innerHTML = D.samples.map(p => `<figure><img loading="lazy" src="../${p}" alt="annotated sample"></figure>`).join("");
+}
+
+function renderAll() {
+  const tab = document.querySelector("nav button[aria-selected=true]").dataset.tab;
+  ({ training: renderTraining, performance: renderPerformance, dataset: renderDataset })[tab]();
+  if (tab !== "training") renderTraining();
+}
+
+// ---- data loading: script tags work from file:// where fetch() does not ----
+function load(src) {
+  return new Promise(res => { const s = document.createElement("script");
+    s.src = `${src}?t=${Date.now()}`; s.onload = s.onerror = () => { s.remove(); res(); }; document.head.appendChild(s); });
+}
+async function refresh() {
+  await Promise.all(["data/live.js", "data/results.js"].map(load));
+  renderAll();
+}
+load("data/dataset.js").then(refresh);
+setInterval(() => { if (!window.RESULTS) refresh(); }, 20000);
+</script>
+</body>
+</html>

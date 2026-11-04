@@ -1,0 +1,13 @@
+{
+  "id": "mariamorise/yolo26-blood-cell-detection",
+  "title": "YOLO26 Blood Cell Detection",
+  "code_file": "train.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_internet": false,
+  "dataset_sources": ["mariamorise/txl-pbc-blood-cells", "mariamorise/ultralytics-yolo26-offline"],
+  "competition_sources": [],
+  "kernel_sources": []
+}
