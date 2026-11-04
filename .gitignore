@@ -5,6 +5,7 @@ blood cells
 
 # Local environment
 .venv/
+.venv-eval/
 __pycache__/
 .DS_Store
 .N

@@ -43,6 +43,22 @@ stays high because Ultralytics scores it at the confidence that maximizes F1, no
 0.25. A count-specific threshold should be chosen on the validation split,
 not on test.
 
+## Count-specific thresholds
+
+`scripts/tune_count_threshold.py` picks the confidence threshold that minimizes per-image
+count MAE on the **validation** split for RBC; other classes keep 0.25.
+The test split is only used to report the result below. Arrows read default 0.25 → tuned.
+
+| Class | Threshold | Val MAE | Test MAE | Test true / predicted total | Test exact count |
+|---|---:|---:|---:|---:|---:|
+| WBC | 0.25 | 0.03 → 0.03 | 0.02 → 0.02 | 133 / 132 → 132 | 98% → 98% |
+| RBC | 0.75 | 3.95 → 1.39 | 4.87 → 1.51 | 1699 / 2292 → 1739 | 2% → 28% |
+| Platelets | 0.25 | 0.10 → 0.10 | 0.08 → 0.08 | 49 / 59 → 59 | 93% → 93% |
+
+Validation MAE by threshold (RBC: 0.10 → 5.14, 0.20 → 4.24, 0.30 → 3.65, 0.40 → 3.17, 0.50 → 2.68, 0.60 → 2.03, 0.70 → 1.60, 0.75 → 1.39, 0.80 → 1.66, 0.90 → 5.43).
+
+These thresholds are for counting only. Detection metrics above are unchanged.
+
 ## Speed
 
 Per image on Tesla T4: preprocess 0.80 ms, inference

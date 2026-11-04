@@ -14,6 +14,7 @@ Kaggle GPU. A local HTML dashboard follows the run live and shows the final resu
 | `kaggle/dataset/dataset-metadata.json` | Private Kaggle dataset holding the images and labels |
 | `scripts/analyze_dataset.py` | Dataset statistics and annotated samples |
 | `scripts/monitor.py` | Polls the Kaggle run, updates the dashboard, downloads output when done |
+| `scripts/tune_count_threshold.py` | Picks the RBC counting threshold on the validation split (runs `best.pt` locally) |
 | `scripts/build_reports.py` | Builds the Markdown reports and the dashboard's results data |
 | `dashboard/index.html` | Dashboard: training progress, model performance, dataset |
 | `reports/` | `dataset_report.md`, `training_report.md`, `evaluation_report.md` and figures |
@@ -43,6 +44,17 @@ cp -R data/TXL-PBC kaggle/dataset/TXL-PBC
 
 # 4. Follow the run; downloads the output and writes reports when it finishes
 .venv/bin/python scripts/monitor.py --interval 60
+```
+
+Optional: tune the counting threshold locally, then rebuild the reports. This needs
+torch and ultralytics, which don't support the Python in `.venv` yet, so use a separate
+Python 3.11 environment:
+
+```bash
+python3.11 -m venv .venv-eval
+.venv-eval/bin/pip install torch torchvision kaggle/deps/files/ultralytics-8.4.198-py3-none-any.whl
+.venv-eval/bin/python scripts/tune_count_threshold.py   # writes reports/count_thresholds.json
+.venv/bin/python scripts/build_reports.py
 ```
 
 Open `dashboard/index.html` in a browser. It reloads its data every 20 seconds while

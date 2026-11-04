@@ -313,11 +313,16 @@ function renderPerformance() {
   });
   $("cm").innerHTML = h;
 
-  const C = R.counting;
-  $("countSub").textContent = `Boxes counted per image at confidence ≥ ${C.conf}. Points on the diagonal are images counted exactly.`;
-  $("countTable").innerHTML = `<tr><th>Class</th><th>True total</th><th>Predicted total</th><th>MAE / image</th><th>Exact count</th></tr>` +
+  // per-class counting thresholds chosen on val (scripts/tune_count_threshold.py) replace the flat default when present
+  const CT = R.count_thresholds, C = CT || R.counting;
+  const tuned = CT ? names.filter(n => CT.thresholds[n] !== CT.default_conf) : [];
+  $("countSub").textContent = CT
+    ? `Boxes counted per image at confidence ≥ ${CT.default_conf}` + (tuned.length ? `, except ${tuned.map(n => `${n} ≥ ${CT.thresholds[n]}`).join(", ")} (chosen on the validation split)` : "") +
+      `. Points on the diagonal are images counted exactly.`
+    : `Boxes counted per image at confidence ≥ ${C.conf}. Points on the diagonal are images counted exactly.`;
+  $("countTable").innerHTML = `<tr><th>Class</th>${CT ? "<th>Threshold</th>" : ""}<th>True total</th><th>Predicted total</th><th>MAE / image</th>${CT ? `<th>MAE at ${CT.default_conf}</th>` : ""}<th>Exact count</th></tr>` +
     names.map((n, i) => { const c = C.per_class[n];
-      return `<tr><td><span class="swatch" style="background:var(${CLASS_VARS[i]})"></span>${n}</td><td>${c.gt_total}</td><td>${c.pred_total}</td><td>${c.mae.toFixed(2)}</td><td>${pct(c.exact_match_rate)}</td></tr>`; }).join("");
+      return `<tr><td><span class="swatch" style="background:var(${CLASS_VARS[i]})"></span>${n}</td>${CT ? `<td>${CT.thresholds[n].toFixed(2)}</td>` : ""}<td>${c.gt_total}</td><td>${c.pred_total}</td><td>${c.mae.toFixed(2)}</td>${CT ? `<td>${CT.default[n].mae.toFixed(2)}</td>` : ""}<td>${pct(c.exact_match_rate)}</td></tr>`; }).join("");
   const maxC = Math.max(...C.per_image.flatMap(p => [...p.gt, ...p.pred]));
   draw("cCount", { type: "scatter", data: { datasets: [
       ...names.map((n, i) => ({ label: n, data: C.per_image.map(p => ({ x: p.gt[i], y: p.pred[i], img: p.image })),

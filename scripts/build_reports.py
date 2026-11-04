@@ -1,6 +1,7 @@
 """Turn the dataset stats and the downloaded Kaggle output into reports + dashboard data.
 
 Inputs:   reports/dataset_stats.json, runs/kaggle_output/output/{results.csv,summary.json,...}
+Optional: reports/count_thresholds.json (scripts/tune_count_threshold.py)
 Outputs:  reports/{dataset,training,evaluation}_report.md, reports/figures/model/*,
           dashboard/data/results.js
 """
@@ -113,7 +114,7 @@ The final epoch reached mAP50-95 {fmt(last["metrics/mAP50-95(B)"])}.
 """
 
 
-def evaluation_report(summary):
+def evaluation_report(summary, ct=None):
     names = list(summary["test"]["per_class"])
 
     def rows(split):
@@ -127,6 +128,7 @@ def evaluation_report(summary):
                   for n, v in cnt["per_class"].items()]
     sp = summary["test"]["speed_ms"]
     worst = min(names, key=lambda n: summary["test"]["per_class"][n]["mAP50-95"])
+    tuned = count_threshold_section(ct) if ct else ""
     examples = "\n".join(f"![example](figures/model/examples/{p.name})"
                          for p in sorted((FIG / "examples").glob("*.jpg")))
     return f"""# Evaluation report
@@ -159,7 +161,7 @@ lower confidence, and every box above the threshold is counted. Box-level precis
 stays high because Ultralytics scores it at the confidence that maximizes F1, not at
 {cnt["conf"]}. A count-specific threshold should be chosen on the validation split,
 not on test.
-
+{tuned}
 ## Speed
 
 Per image on {summary["gpu"]}: preprocess {fmt(sp["preprocess"], 2)} ms, inference
@@ -173,6 +175,38 @@ Per image on {summary["gpu"]}: preprocess {fmt(sp["preprocess"], 2)} ms, inferen
 ## Example predictions (test split)
 
 {examples}
+"""
+
+
+def count_threshold_section(ct):
+    """Per-class counting thresholds chosen on val, compared with the default on both splits."""
+    t = ct["thresholds"]
+    d = ct["default_conf"]
+
+    def arrow(split, n, k, f):
+        return f"{f(ct[split]['default'][n][k])} → {f(ct[split]['tuned'][n][k])}"
+
+    pct = lambda v: f"{100 * v:.0f}%"
+    rows = [[n, fmt(t[n], 2), arrow("val", n, "mae", lambda v: fmt(v, 2)), arrow("test", n, "mae", lambda v: fmt(v, 2)),
+             f"{ct['test']['default'][n]['gt_total']} / {arrow('test', n, 'pred_total', str)}",
+             arrow("test", n, "exact_match_rate", pct)] for n in t]
+    changed = [n for n in t if t[n] != d]
+    sweep = ct["sweep"]
+    curve = "; ".join(f"{n}: " + ", ".join(f"{c:.2f} → {m:.2f}" for c, m in zip(sweep[n]["conf"], sweep[n]["val_mae"])
+                                          if round(c * 100) % 10 == 0 or c == t[n])
+                      for n in changed)
+    return f"""
+## Count-specific thresholds
+
+`scripts/tune_count_threshold.py` picks the confidence threshold that minimizes per-image
+count MAE on the **validation** split{" for " + ", ".join(changed) if changed else ""}; other classes keep {d}.
+The test split is only used to report the result below. Arrows read default {d} → tuned.
+
+{table(["Class", "Threshold", "Val MAE", "Test MAE", "Test true / predicted total", "Test exact count"], rows)}
+
+Validation MAE by threshold ({curve}).
+
+These thresholds are for counting only. Detection metrics above are unchanged.
 """
 
 
@@ -198,10 +232,16 @@ def main():
         shutil.copy(f, FIG / "examples" / f.name)
 
     (REPORTS / "training_report.md").write_text(training_report(summary, epochs))
-    (REPORTS / "evaluation_report.md").write_text(evaluation_report(summary))
+    ct_file = REPORTS / "count_thresholds.json"
+    ct = json.loads(ct_file.read_text()) if ct_file.exists() else None
+    (REPORTS / "evaluation_report.md").write_text(evaluation_report(summary, ct))
     lean = {k: v for k, v in summary.items() if k != "counting"}
     lean["counting"] = {k: v for k, v in summary["counting"].items() if k != "per_image"}
     lean["counting"]["per_image"] = summary["counting"]["per_image"]
+    if ct:
+        lean["count_thresholds"] = {"thresholds": ct["thresholds"], "default_conf": ct["default_conf"],
+                                    "default": ct["test"]["default"], "per_class": ct["test"]["tuned"],
+                                    "per_image": ct["test"]["per_image"]}
     lean["epochs"] = epochs
     lean["plots"] = sorted(f"../reports/figures/model/{p.name}" for p in FIG.glob("*.png"))
     lean["examples"] = sorted(f"../reports/figures/model/examples/{p.name}" for p in (FIG / "examples").glob("*.jpg"))
